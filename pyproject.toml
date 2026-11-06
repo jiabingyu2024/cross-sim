@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "CrossSim"
 description = "Accuracy simulator for analog in-memory computing"
 version = "3.2.1"
+requires-python = ">=3.11"
 license = {text = "BSD 3-Clause License"}
 dependencies = [
     "numpy",
@@ -14,6 +15,47 @@ dependencies = [
 
 [tool.setuptools.packages]
 find = {}
+
+# Local Windows / CUDA 12.8 study environment. Keep application dependencies
+# separate from CrossSim's minimal library dependencies.
+[dependency-groups]
+lab = [
+    "numpy==1.26.4",
+    "scipy==1.11.4",
+    "matplotlib==3.8.2",
+    "pillow>=10,<12",
+    "ipython>=8.8,<9",
+    "ipykernel>=6.29,<7",
+    "jupyterlab>=4.3,<5",
+    "nbconvert>=7.16,<8",
+    "torch==2.7.1+cu128",
+    "torchvision==0.22.1+cu128",
+    "tensorflow==2.17.1",
+    "tensorflow-intel==2.17.1; sys_platform == 'win32'",
+    "keras==3.6.0",
+    "cupy-cuda12x==13.6.0",
+    "opencv-python==4.10.0.84",
+    "scikit-learn>=1.5,<1.8",
+    "pandas>=2.2,<3",
+    "tqdm>=4.66,<5",
+]
+
+[tool.uv]
+default-groups = ["lab"]
+environments = ["sys_platform == 'win32' and python_version == '3.11'"]
+link-mode = "copy"
+# The upstream `gpu` extra installs CuPy from source; this environment uses
+# the CUDA 12 binary wheel instead. Do not install both CuPy distributions.
+conflicts = [[{ extra = "gpu" }, { group = "lab" }]]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu128" }
+torchvision = { index = "pytorch-cu128" }
 
 [project.optional-dependencies]
 gpu = ["cupy"]

@@ -19,6 +19,8 @@ tutorial/.ipynb_checkpoints/
 tutorial/params_64.json
 CrossSim.egg-info/
 venv/
+.venv/
+.jupyter/
 scratch/
 tests/behavioral_tests/logs/
 simulator/tests/logs/
