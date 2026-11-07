@@ -238,6 +238,8 @@ class IArray(ABC):
             else:
                 Verr = 0.5 * (xp.max(xp.abs(VerrMat_pos)) + xp.max(xp.abs(VerrMat_neg)))
 
+        if not xp.isfinite(Verr):
+            raise RuntimeError("Non-finite residual in parasitic resistance simulation")
         return Verr
 
     def _post_process(
@@ -246,7 +248,7 @@ class IArray(ABC):
         input_dim: int = 3,
         row_in: bool = True,
     ) -> npt.NDArray:
-        """Reshapes parasitic simulation matrix and check for NaNs."""
+        """Reshapes simulated currents and rejects non-finite values."""
         # Undo permute and axis switching for FC layer
         if input_dim > 1:
             Icols = xp.transpose(Icols, (2, 0, 1))
@@ -256,6 +258,6 @@ class IArray(ABC):
                     Icols = xp.transpose(Icols, (1, 0))
             elif input_dim == 3 and not row_in:
                 Icols = xp.transpose(Icols, (0, 2, 1))
-        if xp.isnan(Icols).any():
-            raise RuntimeError("Nans due to parasitic resistance simulation")
+        if not xp.isfinite(Icols).all():
+            raise RuntimeError("Non-finite currents due to parasitic resistance simulation")
         return Icols
