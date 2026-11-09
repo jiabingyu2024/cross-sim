@@ -9,9 +9,11 @@ from datetime import datetime, timezone
 import hashlib
 import json
 from pathlib import Path
+import pickle
 import random
 import subprocess
 import sys
+import tarfile
 import time
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -167,6 +169,40 @@ def attach_adc_collectors(model):
     return samples
 
 
+class ArchivedCIFAR10(datasets.CIFAR10):
+    """Read the official archive without writing to an inaccessible extraction."""
+
+    def __init__(self, root, train, transform):
+        archive_path = Path(root) / self.filename
+        datasets.VisionDataset.__init__(self, str(root), transform=transform)
+        self.train = train
+        data = []
+        self.targets = []
+        with tarfile.open(archive_path, 'r:gz') as archive:
+            for filename, _ in self.train_list if train else self.test_list:
+                with archive.extractfile(f'{self.base_folder}/{filename}') as batch:
+                    entry = pickle.load(batch, encoding='latin1')
+                data.append(entry['data'])
+                self.targets.extend(entry['labels'])
+            with archive.extractfile(f'{self.base_folder}/{self.meta["filename"]}') as meta:
+                self.classes = pickle.load(meta, encoding='latin1')[self.meta['key']]
+        self.data = np.vstack(data).reshape(-1, 3, 32, 32).transpose(0, 2, 3, 1)
+        self.class_to_idx = {name: i for i, name in enumerate(self.classes)}
+
+
+def cifar10_dataset(root, train, transform, download):
+    archive_path = Path(root) / datasets.CIFAR10.filename
+    if archive_path.is_file():
+        return ArchivedCIFAR10(root, train, transform)
+    try:
+        return datasets.CIFAR10(str(root), train=train, transform=transform, download=download)
+    except PermissionError:
+        # A first download may finish before extraction hits Windows permissions.
+        if not archive_path.is_file():
+            raise
+        return ArchivedCIFAR10(root, train, transform)
+
+
 def loader(args):
     if args.smoke:
         generator = torch.Generator().manual_seed(args.data_seed)
@@ -177,7 +213,7 @@ def loader(args):
     else:
         transform = transforms.Compose([transforms.ToTensor(), transforms.Normalize(
             [0.485, 0.456, 0.406], [0.229, 0.224, 0.225])])
-        ds = datasets.CIFAR10(str(args.data_root), train=args.case == 'calibrate',
+        ds = cifar10_dataset(args.data_root, train=args.case == 'calibrate',
                              transform=transform, download=args.download)
         if args.n > len(ds):
             raise ValueError('Requested more images than the dataset contains')
